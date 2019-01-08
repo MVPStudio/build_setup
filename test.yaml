@@ -1,0 +1,6 @@
+name: awesome
+build: run_my_build.sh
+test: yarn test
+docker_context: 
+  - build 
+  - static

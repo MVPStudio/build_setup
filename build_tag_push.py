@@ -1,130 +1,151 @@
-# Name: Alyssa Kelley
-# Last worked on: Jan. 14, 2019
-
-import yaml # Parse the add.yml file
-import sys 
+import yaml
+import sys
 import os
 import subprocess
-from shutil import copyfile # Allowing me to copy dockerfile context to new temp dir
+from shutil import copyfile
+import argparse
 
-Docker_Hub_Name = "alyssakelley" # This is my personal docker namespace/username for testing.
-# If we want to make this a user input option --> Docker_Hub_Name = input('Enter your Docker namespace: ')
+# python3 build_tag_push.py namesapce app_yaml_path
 
-# Step 1 - Read the app.yml file = COMPLETE.
+# User input for the docker namespace. Refer to this as args.variable
 
-def parseAppFile(filename):
-	''' 
-	This function is using the yaml built in to parse the file which can be done by searching for 
-	the key in the dictionary for the yaml file. 
+parser = argparse.ArgumentParser(description='Docker namespace')
+parser.add_argument('docker_hub_name', type=str, help='DockerHub namespace')
+# parser.add_argument('docker_hub_password',
+#                     type=str, help='DockerHub password')
+parser.add_argument('app_yml_path', type=str,
+                    help='Repository path to MVP Studio file')
 
-	Example: name = dict_of_contents['name']
-	'''
-	with open(filename, "r") as file_contents:
-		dict_of_contents = yaml.load(file_contents) # might be sys.argv[1] with the GitHub URL to the yml file as the argument when running the python scrip
-	# name = dict_of_contents['name']
-	# build_script = dict_of_contents['build']
-	# test_call = dict_of_contents['test']
-	# docker_context_build = dict_of_contents['docker_context'][0]
-	# docker_context_static = dict_of_contents['docker_context'][1]
-	return dict_of_contents
+args = parser.parse_args()
 
-# Step 2 - Builds and test the app according to that config file = PENDING.
 
-# Is this something other than working with Travis CI or is this part of the next step? 
-# I was under the impression that Travis CI is what we are using to build and test their app. 
-# If not, can you elaborate more on what you want this step to be?
+def main():
+    filename = args.app_yml_path
+    data_from_app_yml = parse_app_file(filename)
+    create_context_directory(data_from_app_yml['docker_context'])
+    build_check_app(data_from_app_yml)
+    build_docker_image(data_from_app_yml)
+    tag_docker_image(data_from_app_yml['name'])
+    push_docker_image(data_from_app_yml['name'])
 
-def createContextDirectory(contextArray):
-	original_dir_path = os.getcwd() # Getting this path to copy over files later in this function. I am assuming
-									# this is where the original files were put that we will be working out of.
 
-	dir_name = "MVPStudio_temp_dir" 
-	# Should this be user input so it can be different names per group? -->
-	# dir_name = input('Enter a directory name for your Docker Context: ')
+def parse_app_file(filename):
+    '''
+    This function is using the yaml built in to parse the file
+    which can be done by searching for the key in the dictionary
+    for the yaml file.
 
-	os.makedirs(dir_name, exist_ok=True) # Making the directory and saying to not raise an error if the directory already exists.
+    Contents (include in the README):
 
-	dir_path = original_dir_path+'/'+dir_name # This is providing the path to the Docker Context directory.
+    name = dict_of_contents['name']
+    build_script = dict_of_contents['build']
+    test_call = dict_of_contents['test']
+    docker_context_build = dict_of_contents['docker_context'][0]
+    docker_context_static = dict_of_contents['docker_context'][1]
+    '''
+    with open(filename, "r") as file_contents:
+        dict_of_contents = yaml.load(file_contents)
 
-	copyfile(original_dir_path+'/'+contextArray[0], dir_path+'/'+contextArray[0]) # Copying the first file from docker_context
-																				  # and putting it in the Docker Context directory 
-																				  # created.
-	copyfile(original_dir_path+'/'+contextArray[1], dir_path+'/'+contextArray[1]) # Copying the first file from docker_context
+    return dict_of_contents
 
-	return dir_path
 
-# Step 3 - Runs docker build with the right context =  COMPLETE.
+def build_check_app(data_from_app_yml):
+    '''
+    This is building and testing their app. Ignoring the return code.
+    '''
+    os.chdir(os.path.dirname(args.app_yml_path))
+    subprocess.call(['bash', data_from_app_yml['build']])
+    subprocess.call(['bash', data_from_app_yml['test']])
+    # QUESTION: I know you guys mentioned needing to ignore any failures
+    # running their test cases might cause, but how should I do this?
 
-# Notes on Docker (for myself as I am working):
 
-# They will have their own Dockerfile in their GitHub repo which will then be placed in our MVP Studio dir
-# Recall: Dockerfile -> docker build -> Docker Image, it is basically an automation of Docker Image Creation. 
-# In the DockerFile, you generally do: FROM = tells Docker which image you base your image on, 
-# RUN = tells Docker which additional commands to execute, CMD = tells Docker to execute the command when the image loads.
+def create_context_directory(contextArray):
+    '''
+    Creating a directory that holds the docker contexts that were listed
+    in their app.yml file. This includes their build and static files.
+    Note: This directory still needs a DockerFile in it, which I am assuming
+    we will need to provide for them to use as a base file, and that
+    would need copied into this directory too, so that is what I did via the
+    last copyfile command as the end of this function.
+    '''
+    repo_root_path = os.path.dirname(args.app_yml_path)
+    dir_name = "docker_context"
+    os.makedirs(repo_root_path+'/'+dir_name, exist_ok=True)
 
-def build_DockerImage(filename):
-	docker_dir_context = createContextDirectory(parseAppFile(filename)['docker_context']) # This will be the build and static file (and needs a Dockerfile as well)
-	image_name = parseAppFile(filename)['name'] # Name from app.yml file
-	subprocess.check_call(["docker", "build", docker_dir_context, "-t", image_name]) # this builds the docker image.
+    docker_context_path = repo_root_path+'/'+dir_name
 
-	# QUESTION: When I try to build the image from the file that has the docker context from the app.yml file 
-	# then I get the error: "Build an image from a Dockerfile". The only way I was able to complete this was 
-	# putting in my own Dockerfile, which I am assuming the groups will have as well and we will need to copy
-	# this over into that directory created, or is this going to be copied over manually?
+    copyfile(repo_root_path+'/'+contextArray[0],
+             docker_context_path+'/'+contextArray[0])
 
-# Step 4 - Tags the image with the current commit hash & push to Docker Hub = COMPLETE.
+    copyfile(repo_root_path+'/'+contextArray[1],
+             docker_context_path+'/'+contextArray[1])
 
-def tag_DockerImage(filename):
-	'''
-	This function is finding the tagging the Docker Image with the name of the user/image_name, and the current git hash. 
-	Note: The current git hash is shortened a bit, but to display the full hash, then change the lower case %h to upper case %H. 
-	The source for this command is: https://container-solutions.com/tagging-docker-images-the-right-way
-	'''
-	image_name = parseAppFile(filename)['name']
+    copyfile(repo_root_path+'/Dockerfile', docker_context_path+'/Dockerfile')
 
-	subprocess.check_call(["docker", "tag", image_name, Docker_Hub_Name+'/'+image_name]) # Need to tag the image with the namespace for the Docker Hub account. 
-																						 # Note: I made this a global variable for now with a comment for user input if needed.
+    return docker_context_path
 
-	current_hash = str(subprocess.check_call(["git", "log", "-1", "--pretty=%h"])) # Note: having the lower case 'h' provides a shorter version of the hash... 
-	 																			   # I read that the shorter tag was better so I did that here.
 
-	subprocess.check_call(["docker", "tag", image_name, Docker_Hub_Name+'/'+image_name+':'+current_hash]) # This tags the image with the current hash.
+def build_docker_image(data_from_app_yml):
+    '''
+    Builds the docker image with the files that are in that directory,
+    which should be a build, static, and Dockerfile. It is then named
+    with their name from their app.yml file.
+    '''
+    docker_dir_context = create_context_directory(data_from_app_yml
+                                                  ['docker_context'])
 
-	# QUESTION: When I am running this function, the current_hash is turning to the number 0, and not what the actual current_hash is when observed in the terminal (which is 07f21e2), 
-	# I have been having this problem a lot with setting a variable = terminal command... it always becomes 0. Is there something I am doing wrong or missing with this?
+    image_name = data_from_app_yml['name']
 
-def push_DockerImage(filename):
-	'''
-	This function is to push the docker image once it has been built and tagged with the name, and the commit hash tag, which is dependent on the 
-	functions build_DockerImage and tag_DockerImage functions.
-	'''
-	image_name = parseAppFile(filename)['name']
-	subprocess.check_call(["docker", "push", Docker_Hub_Name+'/'+image_name])
+    subprocess.check_call(["docker", "build", docker_dir_context,
+                           "-t", image_name])
+
+
+def tag_docker_image(name_from_app_yml):
+    '''
+    This function is tagging the Docker Image with the namespace of the
+    user which was passed in as the first argument, and the current git hash.
+
+    Note: The current git hash is shortened a bit, but to display the full
+    hash, then change the lower case %h to upper case %H. Also, this is
+    decoded via ASCII due to the output being in bytes.
+
+    The source for this command is:
+    https://container-solutions.com/tagging-docker-images-the-right-way
+    '''
+
+    subprocess.check_call(["docker", "tag", name_from_app_yml,
+                           args.docker_hub_name+'/'+name_from_app_yml])
+
+    current_hash = subprocess.check_output(["git", "log", "-1",
+                                            "--pretty=%h"]).strip().decode(
+                                            'ascii')
+    # print(current_hash)
+    subprocess.check_call(["docker", "tag", name_from_app_yml,
+                           args.docker_hub_name +
+                           '/'+name_from_app_yml +
+                           ':'+current_hash])
+
+    # QUESTION: Did we come up with a verdict on whether or not we are doing
+    # an additional version number tag? If so, do you have any recommendations
+    # on how I should do this? I have been researching it a bit and haven't
+    # seen anything that looks like what you are wanting.
+
+
+def push_docker_image(name_from_app_yml):
+    '''
+    This function is to push the docker image once it has been built and
+    tagged with the name, and the commit hash tag, which is dependent on the
+    functions build_DockerImage and tag_DockerImage functions.
+    '''
+    subprocess.check_call(["docker", "push", args.docker_hub_name +
+                          '/'+name_from_app_yml])
+
 
 if __name__ == '__main__':
-	#filename = "test.yaml"
-	filename = "ymltest.yml"
-	data_from_appyaml = parseAppFile(filename)
-	createContextDirectory(parseAppFile(filename)['docker_context'])
-	#print(parseAppFile(filename)['docker_context'])
-	build_DockerImage(filename)
-	tag_DockerImage(filename)
-	push_DockerImage(filename)
+    main()
 
-# Comments regarding testing: 
-# I have not created unit tests for this yet, I am just testing it all manually through test files I have made, and calling 
-# it all in main. My next step is to learn about unit tests and implement them. 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# Comments regarding testing:
+# I have not created unit tests for this yet, I am just testing it all
+# manually through test files I have made, and calling it all in main.
+# My next step is to learn about unit tests and implement them.

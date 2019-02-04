@@ -71,7 +71,7 @@ def build_check_app(data_from_app_yml, args_app_yml_path,
 
     print("Starting test task: %s" % data_from_app_yml['test'])
 
-    result = subprocess.check_call(['bash', data_from_app_yml['test']])
+    result = subprocess.call(['bash', data_from_app_yml['test']])
 
     if result != 0:
         if args_ignore_test_errors:

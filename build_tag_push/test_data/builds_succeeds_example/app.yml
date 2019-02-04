@@ -1,0 +1,7 @@
+name: build-setup-test
+build: build.sh
+test: test.sh
+docker_context: 
+  - build
+  - static
+  - Dockerfile

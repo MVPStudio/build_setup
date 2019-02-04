@@ -2,15 +2,16 @@ import yaml
 import sys
 import os
 import subprocess
+import shutil
 from shutil import copyfile
 import argparse
 import tempfile
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Usage: python3'
-                                     'build_tag_push.py <docker_hub_name'
-                                     '<app_yml_path')
+    parser = argparse.ArgumentParser(description='Usage: python3 '
+                                     'build_tag_push.py <docker_hub_name> '
+                                     '<app_yml_path>')
 
     parser.add_argument('docker_hub_name', type=str,
                         help='DockerHub namespace')
@@ -36,6 +37,11 @@ def main():
     push_docker_image(data_from_app_yml['name'], args.docker_hub_name)
 
 
+class BuildFailedException(Exception):
+    def __init__(self, message):
+        self.message = message
+
+
 def parse_app_file(filename):
     '''
     This function is using the yaml built in to parse the file
@@ -58,11 +64,14 @@ def build_check_app(data_from_app_yml, args_app_yml_path,
 
     print("Starting build task: %s" % data_from_app_yml['build'])
 
-    subprocess.call(['bash', data_from_app_yml['build']])
+    build_res = subprocess.call(['bash', data_from_app_yml['build']])
+
+    if build_res != 0:
+        raise BuildFailedException('The build failed.')
 
     print("Starting test task: %s" % data_from_app_yml['test'])
 
-    result = subprocess.call(['bash', data_from_app_yml['test']])
+    result = subprocess.check_call(['bash', data_from_app_yml['test']])
 
     if result != 0:
         if args_ignore_test_errors:
@@ -144,4 +153,3 @@ def push_docker_image(name_from_app_yml, args_docker_hub_name):
 
 if __name__ == '__main__':
     main()
-

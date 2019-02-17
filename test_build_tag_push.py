@@ -7,12 +7,13 @@ from unittest.mock import patch
 import io
 import sys
 
-path_to_test_yml = ('/Users/alyssakelley/Desktop/MVPStudio/build_tag_push/'
-                    'test_data/builds_succeeds_example/app.yml')
+base_path = os.path.abspath(os.path.dirname(__file__))
 
-path_to_fail_test_yml = ('/Users/alyssakelley/Desktop/MVPStudio/'
-                         'build_tag_push/test_data/build_fails_example/'
-                         'app.yml')
+path_to_test_yml = os.path.join(base_path,
+                                'test_data/builds_succeeds_example/app.yml')
+
+path_to_fail_test_yml = os.path.join(base_path,
+                                     'test_data/build_fails_example/app.yml')
 
 
 class TestBuildTagPush(unittest.TestCase):
@@ -38,12 +39,20 @@ class TestBuildTagPush(unittest.TestCase):
         self.assertEqual("The build failed.", shouldThrow.exception.message)
 
     def test_build_check_app_runs_build(self):
+
+        build_created_path = os.path.join(base_path, 'test_data/'
+                                          'builds_succeeds_example/'
+                                          'tmp/build_done.sh')
+
+        # Delete the file if already exists so test this function is creating
+        # the file each time it is called.
+        if os.path.exists(build_created_path):
+            os.remove(build_created_path)
+
         data_from_app_yml = build_tag_push.parse_app_file(path_to_test_yml)
         build_tag_push.build_check_app(data_from_app_yml, path_to_test_yml,
                                        True)
-        self.assertTrue(os.path.exists('/Users/alyssakelley/Desktop/MVPStudio/'
-                        'build_tag_push/test_data/builds_succeeds_example/tmp/'
-                                       'build_done.sh'))
+        self.assertTrue(os.path.exists(build_created_path))
 
     def test_create_context_directory(self):
 
@@ -54,46 +63,39 @@ class TestBuildTagPush(unittest.TestCase):
         self.assertEqual(output, ['Dockerfile', 'static', 'build'])
 
     def test_build_docker_image(self):
+
         data_from_app_yml = build_tag_push.parse_app_file(path_to_test_yml)
 
-        capturedOutput = io.StringIO()
-        sys.stdout = capturedOutput
-        build_tag_push.build_docker_image(data_from_app_yml, path_to_test_yml)
-        sys.stdout = sys.__stdout__
+        image_name = data_from_app_yml['name']
 
-        self.assertEqual(capturedOutput.getvalue(), 'Building the docker '
-                         'image for build-setup-test\nCreating a '
-                         'temporary directory containting [\'build\', '
-                         '\'static\', \'Dockerfile\']\n')
+        subprocess.call(["docker", "rmi", image_name])
+
+        build_tag_push.build_docker_image(data_from_app_yml, path_to_test_yml)
+
+        does_image_exist = subprocess.call(['docker', 'inspect', image_name])
+
+        self.assertEqual(does_image_exist, 0)
 
     def test_tag_docker_image(self):
-        name_from_app_yml = 'build-setup-test'
+        data_from_app_yml = build_tag_push.parse_app_file(path_to_test_yml)
+
+        image_name = data_from_app_yml['name']
         docker_hub_name = 'alyssakelley'
+
+        subprocess.call(["docker", "rmi", image_name])
+
+        build_tag_push.build_docker_image(data_from_app_yml, path_to_test_yml)
+        build_tag_push.tag_docker_image(image_name, docker_hub_name)
 
         test_current_hash = subprocess.check_output(
                             ["git", "log", "-1", "--pretty=%h"]).strip(
                                 ).decode('ascii')
+        is_imaged_tagged = subprocess.call(['docker', 'image',
+                                           'inspect', docker_hub_name + '/' +
+                                            image_name + ':' +
+                                            test_current_hash])
 
-        capturedOutput = io.StringIO()
-        sys.stdout = capturedOutput
-        build_tag_push.tag_docker_image(name_from_app_yml, docker_hub_name)
-        sys.stdout = sys.__stdout__
-
-        self.assertEqual(capturedOutput.getvalue(), "Tagging the docker "
-                         "image with the current hash " + test_current_hash +
-                         "\n")
-
-    def test_push_docker_image(self):
-        name_from_app_yml = 'build-setup-test'
-        docker_hub_name = 'alyssakelley'
-
-        capturedOutput = io.StringIO()
-        sys.stdout = capturedOutput
-        build_tag_push.push_docker_image(name_from_app_yml, docker_hub_name)
-        sys.stdout = sys.__stdout__
-
-        self.assertEqual(capturedOutput.getvalue(), "Pushing the docker image "
-                         "build-setup-test\n")
+        self.assertEqual(is_imaged_tagged, 0)
 
 if __name__ == '__main__':
     unittest.main()

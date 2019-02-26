@@ -58,7 +58,7 @@ def build_check_app(data_from_app_yml, args_app_yml_path,
 
     print("Starting build task: %s" % data_from_app_yml['build'])
 
-    subprocess.call(['bash', data_from_app_yml['build']])
+    subprocess.check_call(['bash', data_from_app_yml['build']])
 
     print("Starting test task: %s" % data_from_app_yml['test'])
 
@@ -107,7 +107,7 @@ def build_docker_image(data_from_app_yml, args_app_yml_path):
 
     image_name = data_from_app_yml['name']
 
-    subprocess.call(["docker", "build", docker_dir_context,
+    subprocess.check_call(["docker", "build", docker_dir_context,
                      "-t", image_name])
 
 
@@ -116,7 +116,7 @@ def tag_docker_image(name_from_app_yml, args_docker_hub_name):
     This function is tagging the Docker Image with the namespace of the
     user which was passed in as the first argument, and the current git hash.
     '''
-    subprocess.call(["docker", "tag", name_from_app_yml,
+    subprocess.check_call(["docker", "tag", name_from_app_yml,
                     os.path.join(args_docker_hub_name,
                      name_from_app_yml)])
 
@@ -125,7 +125,7 @@ def tag_docker_image(name_from_app_yml, args_docker_hub_name):
 
     print("Tagging the docker image with the current hash", current_hash)
 
-    subprocess.call(["docker", "tag", name_from_app_yml,
+    subprocess.check_call(["docker", "tag", name_from_app_yml,
                     args_docker_hub_name + '/'+name_from_app_yml +
                     ':'+current_hash])
 
@@ -138,7 +138,7 @@ def push_docker_image(name_from_app_yml, args_docker_hub_name):
     '''
     print("Pushing the docker image %s" % name_from_app_yml)
 
-    subprocess.call(["docker", "push", args_docker_hub_name +
+    subprocess.check_call(["docker", "push", args_docker_hub_name +
                     '/'+name_from_app_yml])
 
 

@@ -1,0 +1,38 @@
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: REDACTED
+    server: https://35.227.179.125
+  name: gke_mvpstudio_us-west1_main
+- cluster:
+    certificate-authority: /Users/alyssakelley/.minikube/ca.crt
+    server: https://192.168.99.100:8443
+  name: minikube
+contexts:
+- context:
+    cluster: gke_mvpstudio_us-west1_main
+    user: gke_mvpstudio_us-west1_main
+  name: gke_mvpstudio_us-west1_main
+- context:
+    cluster: minikube
+    user: minikube
+  name: minikube
+current-context: gke_mvpstudio_us-west1_main
+kind: Config
+preferences: {}
+users:
+- name: gke_mvpstudio_us-west1_main
+  user:
+    auth-provider:
+      config:
+        access-token: ya29.Gl3KBvaZzmtYPr_KdPuYw-DCnbwLXYVrSOixorC5yA5bjVNwOzo6TZ7f1mK-_J6RO6laMVnLRMv5d7OzokdUpiHKcHSecw501N0EDhvuHlxaxWHe8T67yLdlMiuT3po
+        cmd-args: config config-helper --format=json
+        cmd-path: /Users/alyssakelley/google-cloud-sdk/bin/gcloud
+        expiry: 2019-03-12T18:34:16Z
+        expiry-key: '{.credential.token_expiry}'
+        token-key: '{.credential.access_token}'
+      name: gcp
+- name: minikube
+  user:
+    client-certificate: /Users/alyssakelley/.minikube/client.crt
+    client-key: /Users/alyssakelley/.minikube/client.key

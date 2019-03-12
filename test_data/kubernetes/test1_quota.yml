@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: test1
+spec:
+  hard:
+    limits.cpu: '1'
+    limits.memory: 2G
+    requests.cpu: '1'
+    requests.memory: 2G

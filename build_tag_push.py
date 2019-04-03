@@ -3,10 +3,14 @@ import sys
 import os
 import subprocess
 from shutil import copyfile, copytree
+import argparse
 import tempfile
 
 
 def main():
+    parser = argparse.ArgumentParser(description='Usage: python3 '
+                                     'build_tag_push.py <docker_hub_name> '
+                                     '<app_yml_path>')
 
     docker_hub_name = os.environ[str('DOCKER_REPO')]
 
@@ -23,6 +27,11 @@ def main():
     push_docker_image(data_from_app_yml['name'], docker_hub_name)
 
 
+class BuildFailedException(Exception):
+    def __init__(self, message):
+        self.message = message
+
+
 def parse_app_file(filename):
     '''
     This function is using the yaml built in to parse the file
@@ -37,7 +46,7 @@ def parse_app_file(filename):
 def docker_login():
     subprocess.check_call(["docker", "login", "-u" ,os.environ[str('DOCKER_LOGIN')], "-p", os.environ[str('DOCKER_PWD')]])
 
-def create_context_directory(context_array, app_yml_path):
+def create_context_directory(context_array, args_app_yml_path):
     '''
     Creating a directory that holds the docker contexts that were listed
     in their app.yml file.

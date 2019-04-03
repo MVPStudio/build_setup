@@ -2,7 +2,7 @@ import yaml
 import sys
 import os
 import subprocess
-from shutil import copyfile
+from shutil import copyfile, copytree
 import tempfile
 
 
@@ -13,6 +13,8 @@ def main():
     app_yml_path = ".mvpstudio/config.yml"
 
     data_from_app_yml = parse_app_file(app_yml_path)
+
+    docker_login()
 
     build_docker_image(data_from_app_yml, app_yml_path)
 
@@ -28,19 +30,26 @@ def parse_app_file(filename):
     for the yaml file.
     '''
     with open(filename, "r") as file_contents:
-        dict_of_contents = yaml.load(file_contents)
+        dict_of_contents = yaml.load(file_contents, Loader=yaml.FullLoader)
 
     return dict_of_contents
 
+def docker_login():
+    subprocess.check_call(["docker", "login", "-u" ,os.environ[str('DOCKER_LOGIN')], "-p", os.environ[str('DOCKER_PWD')]])
 
 def create_context_directory(context_array, app_yml_path):
     '''
     Creating a directory that holds the docker contexts that were listed
     in their app.yml file.
     '''
-    print(f'Creating a temporary directory containting {context_array}')
-
     repo_root_path = os.path.dirname(app_yml_path)
+
+    # skip temp directory if there is only a single docker context
+    if (len(context_array) == 1):
+        print(f'Found single docker context {context_array[0]} skipping temp dir')
+        return os.path.join(repo_root_path, context_array[0])
+    
+    print(f'Creating a temporary directory containting {context_array}')
 
     docker_context_path = tempfile.mkdtemp()
 
@@ -49,7 +58,7 @@ def create_context_directory(context_array, app_yml_path):
         if os.path.isfile(full_path):
             copyfile(full_path, os.path.join(docker_context_path, file_or_dir))
         else:
-            shutil.copytree(full_path, os.path.join(docker_context_path,
+            copytree(full_path, os.path.join(docker_context_path,
                             file_or_dir))
 
     return docker_context_path
@@ -106,4 +115,3 @@ def push_docker_image(name_from_app_yml, docker_hub_name):
 
 if __name__ == '__main__':
     main()
-

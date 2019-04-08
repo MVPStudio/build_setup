@@ -46,7 +46,7 @@ def parse_app_file(filename):
 def docker_login():
     subprocess.check_call(["docker", "login", "-u" ,os.environ[str('DOCKER_LOGIN')], "-p", os.environ[str('DOCKER_PWD')]])
 
-def create_context_directory(context_array, args_app_yml_path):
+def create_context_directory(context_array, app_yml_path):
     '''
     Creating a directory that holds the docker contexts that were listed
     in their app.yml file.

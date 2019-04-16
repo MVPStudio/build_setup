@@ -49,7 +49,7 @@ def main():
 
     create_namespace_yml(namespace_filename, team_name)
 
-    kube_apply(namespace_filename, team_name, "namespace")
+    kube_create_namespace(namespace_filename, team_name, "namespace")
 
     quota_filename = team_name + "_quota.yml"
 
@@ -66,10 +66,6 @@ def main():
     rolebinding_filename = team_name + "_rolebinding.yml"
 
     create_rolebinding_yml(rolebinding_filename, team_name, args.group_user)
-
-    config_file = get_congif_yml_file(team_name)
-
-    get_access_token(config_file, team_name)
 
 
 def create_namespace_yml(namespace_filename, team_name):
@@ -128,8 +124,9 @@ def create_resource_quota(quota_filename, team_name, RAM, CPU):
     return yml_file_kubernetes_data
 
 
-def kube_apply(filename, team_name, type_of_create):
-    subprocess.check_call(['kubectl', 'apply', '-f', filename])
+def kube_create_namespace(filename, team_name, type_of_create):
+    
+    subprocess.check_call(['kubectl', 'create', 'f', filename])
 
     print("The Kubernetes {} for {} was "
           "created.".format(type_of_create, team_name))
@@ -147,77 +144,13 @@ def kube_apply_resource_quota(filename, team_name, type_of_create):
           "created.".format(type_of_create, team_name))
 
 
-def get_congif_yml_file(team_name, group_user):
-    """
-    This function is pulling the information from the configuration
-    file for the team's namespace and putting it into another file that
-    we can later access. This is specifically going to be used for
-    retrieving the access-token.
-    """
-    config_filename = team_name+'_config_file.yml'
-
-    terminal_command = ['kubectl', 'config', 'view', group_user]
-
-    with open(config_filename, 'w') as outfile:
-        subprocess.check_call(terminal_command, stdout=outfile)
-
-    print("The config file for {} was created and saved as {} in the "
-          "current folder".format(team_name, config_filename))
-
-    return config_filename
-
-
-def get_access_token(config_file, team_name):
-    """
-    This function is using the configuration file we created with
-    get_congif_yml_file and the parsing it to store only the access
-    token in a separate file so we can hand that to the Hack-For-A-
-    Cause teams. The file name for the tokens would be
-    access_token_from_config_<team_name>.txt and is placed in the
-    current directory with the other yml files created.
-    """
-    with open(config_file, "r") as file_contents:
-        dict_of_contents = yaml.load(file_contents)
-
-    filename_for_token = "access_token_from_config_" + team_name + ".txt"
-
-    access_token = (dict_of_contents['users'][0]['user']['auth-provider']
-                    ['config']['access-token'])
-
-    f = open(filename_for_token, "w+")
-
-    f.write(access_token)
-
-    f.close()
-
-    print("The access token for {} has been parsed and placed in "
-          "a file named {}".format(team_name, filename_for_token))
-
-
 def create_gcloud_service_account(team_name, group_user):
 
     project_id = 'mvpstudio'
     role_id = 'roles/container.developer'
     key_filename = team_name+"_gcloud_serviceaccount_key.json"
-
-    # service_account = service.projects().serviceAccounts().create(
-    #     name=project_id,
-    #     body={
-    #         'accountId' : name,
-    #         'serviceAccount' : {
-    #             'displayName' : team_name
-    #         }
-    #     }).execute()
-
-    # subprocess.check_call(['gcloud', GROUP, 'add-iam-policy-binding',
-    #                       project_id, '--member', service_account['email'],
-    #                       '--role', role_id])
-
-    # print("Created service account: ", service_account['email'], "which has"
-    #     " the role: ", role_id)
-
     subprocess.check_call(['gcloud', 'iam', 'service-accounts',
-                           'create', team_name])
+                          'create', team_name])
 
     print("Created the service account: ", team_name)
 
@@ -229,9 +162,11 @@ def create_gcloud_service_account(team_name, group_user):
     print("Granted {} with the permissions: {}".format(team_name, role_id))
 
     subprocess.check_call(['gcloud', 'iam', 'service-accounts',
-                          'key', 'create', key_filename, '--iam-account',
+                          'keys', 'create', key_filename, '--iam-account',
                            team_name + '@' + project_id +
                            '.iam.gserviceaccount.com'])
+
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = key_filename
 
     print("Generated the key file and saved it as ", key_filename)
 
@@ -247,18 +182,19 @@ def create_role_yml(role_filename, team_name, group_user):
         kind='Role',
         metadata=dict(
             namespace=team_name,
-            name=group_user,
+            name=team_name+"_role",
             ),
         rules=[
             {
-                'apiGroups': '',
-                'resourses': ['pods'],
-                'verbs': ['get', 'watch', 'list'],
+                'apiGroups': [''],
+                'resources': ['pods'],
+                'verbs': ['get', 'watch', 'list', 'create', 'update', 'patch'],
             }
             ],
         )
 
     with open(role_filename, 'w') as outfile:
+        print('YAML IN:', role_filename)
         yaml.dump(yml_file_kubernetes_data, outfile, default_flow_style=False)
 
     subprocess.check_call(['kubectl', 'apply', '-f', role_filename])
@@ -280,14 +216,14 @@ def create_rolebinding_yml(rolebinding_filename, team_name, group_user):
         subjects=[
             {
                 'kind': 'User',
-                'name': team_name,
+                'name': team_name+'@mvpstudio.iam.gserviceaccount.com',
                 'apiGroup': 'rbac.authorization.k8s.io',
             }
             ],
         roleRef={
             'kind': 'Role',
             # this must match the name of the Role it is binding to
-            'name': group_user,
+            'name': team_name+"_role",  # this should be the name of the Role
             'apiGroup': 'rbac.authorization.k8s.io',
             }
         )
@@ -295,7 +231,7 @@ def create_rolebinding_yml(rolebinding_filename, team_name, group_user):
     with open(rolebinding_filename, 'w') as outfile:
         yaml.dump(yml_file_kubernetes_data, outfile, default_flow_style=False)
 
-    subprocess.check_call(['kubectl', 'create', 'rolebinding',
+    subprocess.check_call(['kubectl', 'apply', '-f',
                           rolebinding_filename, '--namespace='+team_name])
 
 

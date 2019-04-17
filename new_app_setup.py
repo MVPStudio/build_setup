@@ -125,8 +125,8 @@ def create_resource_quota(quota_filename, team_name, RAM, CPU):
 
 
 def kube_create_namespace(filename, team_name, type_of_create):
-    
-    subprocess.check_call(['kubectl', 'create', 'f', filename])
+
+    subprocess.check_call(['kubectl', 'create', '-f', filename])
 
     print("The Kubernetes {} for {} was "
           "created.".format(type_of_create, team_name))

@@ -22,10 +22,6 @@ def main():
     parser.add_argument('--team_name', type=str, required=True,
                         help='Team name')
 
-    parser.add_argument('-u', '--list_of_users',
-                        required=False,
-                        help='A list of the users for this team.')
-
     parser.add_argument('-r', '--RAM', type=int, required=False,
                         default=2, help="How many gigabytes of RAM your "
                         "team is requesting, the deault is 2G.")

@@ -3,7 +3,7 @@
 New App Setup   
 
 ```
-python3 new_app_setup.py --team_name current_team_name
+python3 new_app_setup.py --team_name current-team-name
 ```
 
 This command will create a gcloud servie account, and a Kubernetes namespace for your team. Your kubernetes namespace will be given a rolebinding so you will have complete access to your specific namespace. 
@@ -18,7 +18,7 @@ gcloud auth activate-service-account [SERVICE ACCOUNT EMAIL] --key-file=./curren
 Once the team has been authenticated, they will be able to access their Kubernetes namespace, and they will need to run this configuration command:
 
 ```
-kubectl config set-context gke_mvpstudio_us-west1_main --namespace=current_team_name
+kubectl config set-context gke_mvpstudio_us-west1_main --namespace=current-team-name
 ```
 
 

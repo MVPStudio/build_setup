@@ -14,9 +14,6 @@ import googleapiclient.discovery
 
 
 def main():
-
-    base_path = os.path.abspath(os.path.dirname(__file__))
-
     parser = argparse.ArgumentParser(description='Usage: python3 '
                                      'new_app_setup.py <Team name> '
                                      '<Group user> '
@@ -24,10 +21,6 @@ def main():
 
     parser.add_argument('--team_name', type=str, required=True,
                         help='Team name')
-
-    parser.add_argument('--group_user', type=str, required=True,
-                        help='An email address that '
-                        'will be used for the entire group as a whole.')
 
     parser.add_argument('-u', '--list_of_users',
                         required=False,
@@ -43,29 +36,37 @@ def main():
 
     args = parser.parse_args()
 
+    working_dir = os.path.join(os.path.abspath(
+        os.path.dirname(__file__)), '.working_tmp')
+
+    if not os.path.exists(working_dir):
+        os.makedirs(working_dir)
+
     team_name = args.team_name.replace(" ", "-").replace("_", "-").lower()
 
-    namespace_filename = team_name + "_namespace.yml"
+    namespace_filename = os.path.join(
+        working_dir, team_name + "-namespace.yml")
 
     create_namespace_yml(namespace_filename, team_name)
 
     kube_create_namespace(namespace_filename, team_name, "namespace")
 
-    quota_filename = team_name + "_quota.yml"
+    quota_filename = os.path.join(working_dir, team_name + "-quota.yml")
 
     create_resource_quota(quota_filename, team_name, args.RAM, args.CPU)
 
-    kube_apply_resource_quota(quota_filename, team_name, "resource_quota")
+    kube_apply_resource_quota(quota_filename, team_name, "resource-quota")
 
-    create_gcloud_service_account(team_name, args.group_user)
+    create_gcloud_service_account(team_name, working_dir)
 
-    role_filename = team_name + "_role.yml"
+    role_filename = os.path.join(working_dir, team_name + "-role.yml")
 
-    create_role_yml(role_filename, team_name, args.group_user)
+    create_role_yml(role_filename, team_name)
 
-    rolebinding_filename = team_name + "_rolebinding.yml"
+    rolebinding_filename = os.path.join(
+        working_dir, team_name + "-rolebinding.yml")
 
-    create_rolebinding_yml(rolebinding_filename, team_name, args.group_user)
+    create_rolebinding_yml(rolebinding_filename, team_name)
 
 
 def create_namespace_yml(namespace_filename, team_name):
@@ -80,9 +81,9 @@ def create_namespace_yml(namespace_filename, team_name):
             name=team_name,
             labels=dict(
                 name=tag
-                )
             )
         )
+    )
 
     with open(namespace_filename, 'w') as outfile:
         yaml.dump(yml_file_kubernetes_data, outfile, default_flow_style=False)
@@ -126,7 +127,7 @@ def create_resource_quota(quota_filename, team_name, RAM, CPU):
 
 def kube_create_namespace(filename, team_name, type_of_create):
 
-    subprocess.check_call(['kubectl', 'create', '-f', filename])
+    subprocess.check_call(['kubectl', 'apply', '-f', filename])
 
     print("The Kubernetes {} for {} was "
           "created.".format(type_of_create, team_name))
@@ -138,40 +139,36 @@ def kube_apply_resource_quota(filename, team_name, type_of_create):
     --namespace flag.
     """
     subprocess.check_call(['kubectl', 'apply', '-f',
-                          filename, '--namespace=' + team_name])
+                           filename, '--namespace=' + team_name])
 
     print("The Kubernetes {} for {} was "
           "created.".format(type_of_create, team_name))
 
 
-def create_gcloud_service_account(team_name, group_user):
+def create_gcloud_service_account(team_name, working_dir):
 
     project_id = 'mvpstudio'
-    role_id = 'roles/container.developer'
-    key_filename = team_name+"_gcloud_serviceaccount_key.json"
+    key_filename = os.path.join(
+        working_dir, team_name+"_gcloud_serviceaccount_key.json")
+
+    # TODO: check if account already exists, and if so, skip
     subprocess.check_call(['gcloud', 'iam', 'service-accounts',
-                          'create', team_name])
+                           'create', team_name])
 
     print("Created the service account: ", team_name)
 
-    subprocess.check_call(['gcloud', 'projects', 'add-iam-policy-binding',
-                          project_id, '--member', 'serviceAccount:' +
-                          team_name + '@'+project_id +
-                          '.iam.gserviceaccount.com', '--role', role_id])
-
-    print("Granted {} with the permissions: {}".format(team_name, role_id))
+    service_account_email = team_name + '@'+project_id + '.iam.gserviceaccount.com'
 
     subprocess.check_call(['gcloud', 'iam', 'service-accounts',
-                          'keys', 'create', key_filename, '--iam-account',
-                           team_name + '@' + project_id +
-                           '.iam.gserviceaccount.com'])
+                           'keys', 'create', key_filename, '--iam-account',
+                           service_account_email])
 
     os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = key_filename
 
     print("Generated the key file and saved it as ", key_filename)
 
 
-def create_role_yml(role_filename, team_name, group_user):
+def create_role_yml(role_filename, team_name):
     """
     https://kubernetes.io/docs/reference/
     access-authn-authz/rbac/#role-and-clusterrole
@@ -182,16 +179,16 @@ def create_role_yml(role_filename, team_name, group_user):
         kind='Role',
         metadata=dict(
             namespace=team_name,
-            name=team_name+"_role",
-            ),
+            name=team_name+"-role",
+        ),
         rules=[
             {
                 'apiGroups': [''],
                 'resources': ['pods'],
                 'verbs': ['get', 'watch', 'list', 'create', 'update', 'patch'],
             }
-            ],
-        )
+        ],
+    )
 
     with open(role_filename, 'w') as outfile:
         print('YAML IN:', role_filename)
@@ -200,7 +197,7 @@ def create_role_yml(role_filename, team_name, group_user):
     subprocess.check_call(['kubectl', 'apply', '-f', role_filename])
 
 
-def create_rolebinding_yml(rolebinding_filename, team_name, group_user):
+def create_rolebinding_yml(rolebinding_filename, team_name):
     """
     Rolebinding allows the team to be able to access their
     specific namespace.
@@ -212,27 +209,27 @@ def create_rolebinding_yml(rolebinding_filename, team_name, group_user):
         metadata=dict(
             name='read-pods',
             namespace=team_name,
-            ),
+        ),
         subjects=[
             {
                 'kind': 'User',
                 'name': team_name+'@mvpstudio.iam.gserviceaccount.com',
                 'apiGroup': 'rbac.authorization.k8s.io',
             }
-            ],
+        ],
         roleRef={
             'kind': 'Role',
             # this must match the name of the Role it is binding to
-            'name': team_name+"_role",  # this should be the name of the Role
+            'name': team_name+"-role",  # this should be the name of the Role
             'apiGroup': 'rbac.authorization.k8s.io',
-            }
-        )
+        }
+    )
 
     with open(rolebinding_filename, 'w') as outfile:
         yaml.dump(yml_file_kubernetes_data, outfile, default_flow_style=False)
 
     subprocess.check_call(['kubectl', 'apply', '-f',
-                          rolebinding_filename, '--namespace='+team_name])
+                           rolebinding_filename, '--namespace='+team_name])
 
 
 if __name__ == '__main__':

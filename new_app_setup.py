@@ -144,7 +144,7 @@ def kube_apply_resource_quota(filename, team_name, type_of_create):
 def create_gcloud_service_account(team_name, working_dir):
 
     project_id = 'mvpstudio'
-    
+
     key_filename = os.path.join(
         working_dir, team_name+"_gcloud_serviceaccount_key.json")
 
@@ -161,8 +161,8 @@ def create_gcloud_service_account(team_name, working_dir):
                            service_account_email])
 
     subprocess.check_call(['gcloud', 'projects', 'add-iam-policy-binding', 'mvpstudio',
-    '--member', 'serviceAccount:'+service_account_email,
-    '--role', 'projects/mvpstudio/roles/AppTeamServiceAccount'])
+                           '--member', 'serviceAccount:'+service_account_email,
+                           '--role', 'projects/mvpstudio/roles/AppTeamServiceAccount'])
 
     os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = key_filename
 

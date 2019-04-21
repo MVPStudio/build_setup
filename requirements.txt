@@ -1,7 +1,4 @@
-<<<<<<< HEAD
-=======
 PyYAML==5.1
->>>>>>> b8d77ca10782f877d159c055dd8596bc960b9aae
 google-cloud-storage==1.15.0
 google-cloud-iam==0.1.0
 google-api-python-client==1.7.8

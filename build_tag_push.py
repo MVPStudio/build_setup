@@ -2,38 +2,34 @@ import yaml
 import sys
 import os
 import subprocess
-from shutil import copyfile
+from shutil import copyfile, copytree
 import argparse
 import tempfile
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Usage: python3'
-                                     'build_tag_push.py <docker_hub_name'
-                                     '<app_yml_path')
+    parser = argparse.ArgumentParser(description='Usage: python3 '
+                                     'build_tag_push.py <docker_hub_name> '
+                                     '<app_yml_path>')
 
-    parser.add_argument('docker_hub_name', type=str,
-                        help='DockerHub namespace')
+    docker_hub_name = os.environ[str('DOCKER_REPO')]
 
-    parser.add_argument('app_yml_path', type=str,
-                        help='Repository path to MVP Studio file')
+    app_yml_path = ".mvpstudio/config.yml"
 
-    parser.add_argument('--ignore_test_errors', type=bool,
-                        help='Boolean value if you want to ignore'
-                        'test errors.')
+    data_from_app_yml = parse_app_file(app_yml_path)
 
-    args = parser.parse_args()
+    docker_login()
 
-    data_from_app_yml = parse_app_file(args.app_yml_path)
+    build_docker_image(data_from_app_yml, app_yml_path)
 
-    build_check_app(data_from_app_yml, args.app_yml_path,
-                    args.ignore_test_errors)
+    tag_docker_image(data_from_app_yml['name'], docker_hub_name)
 
-    build_docker_image(data_from_app_yml, args.app_yml_path)
+    push_docker_image(data_from_app_yml['name'], docker_hub_name)
 
-    tag_docker_image(data_from_app_yml['name'], args.docker_hub_name)
 
-    push_docker_image(data_from_app_yml['name'], args.docker_hub_name)
+class BuildFailedException(Exception):
+    def __init__(self, message):
+        self.message = message
 
 
 def parse_app_file(filename):
@@ -43,42 +39,26 @@ def parse_app_file(filename):
     for the yaml file.
     '''
     with open(filename, "r") as file_contents:
-        dict_of_contents = yaml.load(file_contents)
+        dict_of_contents = yaml.load(file_contents, Loader=yaml.FullLoader)
 
     return dict_of_contents
 
+def docker_login():
+    subprocess.check_call(["docker", "login", "-u" ,os.environ[str('DOCKER_LOGIN')], "-p", os.environ[str('DOCKER_PWD')]])
 
-def build_check_app(data_from_app_yml, args_app_yml_path,
-                    args_ignore_test_errors):
-    '''
-    This is building and testing their app. Ignoring the return code.
-    '''
-    path_to_build_and_test = args_app_yml_path
-    os.chdir(os.path.dirname(path_to_build_and_test))
-
-    print("Starting build task: %s" % data_from_app_yml['build'])
-
-    subprocess.call(['bash', data_from_app_yml['build']])
-
-    print("Starting test task: %s" % data_from_app_yml['test'])
-
-    result = subprocess.call(['bash', data_from_app_yml['test']])
-
-    if result != 0:
-        if args_ignore_test_errors:
-            print("ERROR: Tests failes.")
-        else:
-            raise RunTimeError('Unit tests failed.')
-
-
-def create_context_directory(context_array, args_app_yml_path):
+def create_context_directory(context_array, app_yml_path):
     '''
     Creating a directory that holds the docker contexts that were listed
     in their app.yml file.
     '''
-    print(f'Creating a temporary directory containting {context_array}')
+    repo_root_path = os.path.dirname(app_yml_path)
 
-    repo_root_path = os.path.dirname(args_app_yml_path)
+    # skip temp directory if there is only a single docker context
+    if (len(context_array) == 1):
+        print(f'Found single docker context {context_array[0]} skipping temp dir')
+        return os.path.join(repo_root_path, context_array[0])
+    
+    print(f'Creating a temporary directory containting {context_array}')
 
     docker_context_path = tempfile.mkdtemp()
 
@@ -87,13 +67,13 @@ def create_context_directory(context_array, args_app_yml_path):
         if os.path.isfile(full_path):
             copyfile(full_path, os.path.join(docker_context_path, file_or_dir))
         else:
-            shutil.copytree(full_path, os.path.join(docker_context_path,
+            copytree(full_path, os.path.join(docker_context_path,
                             file_or_dir))
 
     return docker_context_path
 
 
-def build_docker_image(data_from_app_yml, args_app_yml_path):
+def build_docker_image(data_from_app_yml, app_yml_path):
     '''
     Builds the docker image with the files that are in that directory,
     which should be a build, static, and Dockerfile. It is then named
@@ -103,21 +83,21 @@ def build_docker_image(data_from_app_yml, args_app_yml_path):
 
     docker_dir_context = create_context_directory(data_from_app_yml
                                                   ['docker_context'],
-                                                  args_app_yml_path)
+                                                  app_yml_path)
 
     image_name = data_from_app_yml['name']
 
-    subprocess.call(["docker", "build", docker_dir_context,
+    subprocess.check_call(["docker", "build", docker_dir_context,
                      "-t", image_name])
 
 
-def tag_docker_image(name_from_app_yml, args_docker_hub_name):
+def tag_docker_image(name_from_app_yml, docker_hub_name):
     '''
     This function is tagging the Docker Image with the namespace of the
     user which was passed in as the first argument, and the current git hash.
     '''
-    subprocess.call(["docker", "tag", name_from_app_yml,
-                    os.path.join(args_docker_hub_name,
+    subprocess.check_call(["docker", "tag", name_from_app_yml,
+                    os.path.join(docker_hub_name,
                      name_from_app_yml)])
 
     current_hash = subprocess.check_output(
@@ -125,12 +105,12 @@ def tag_docker_image(name_from_app_yml, args_docker_hub_name):
 
     print("Tagging the docker image with the current hash", current_hash)
 
-    subprocess.call(["docker", "tag", name_from_app_yml,
-                    args_docker_hub_name + '/'+name_from_app_yml +
+    subprocess.check_call(["docker", "tag", name_from_app_yml,
+                    docker_hub_name + '/'+name_from_app_yml +
                     ':'+current_hash])
 
 
-def push_docker_image(name_from_app_yml, args_docker_hub_name):
+def push_docker_image(name_from_app_yml, docker_hub_name):
     '''
     This function is to push the docker image once it has been built and
     tagged with the name, and the commit hash tag, which is dependent on the
@@ -138,10 +118,9 @@ def push_docker_image(name_from_app_yml, args_docker_hub_name):
     '''
     print("Pushing the docker image %s" % name_from_app_yml)
 
-    subprocess.call(["docker", "push", args_docker_hub_name +
+    subprocess.check_call(["docker", "push", docker_hub_name +
                     '/'+name_from_app_yml])
 
 
 if __name__ == '__main__':
     main()
-

@@ -184,8 +184,22 @@ def create_role_yml(role_filename, team_name):
         ),
         rules=[
             {
-                'apiGroups': [''],
-                'resources': ['pods'],
+                'apiGroups': ['*'],
+                'resources': [
+                    'pods',
+                    'deployments',
+                    'services',
+                    'configmaps',
+                    'persistentvolumeclaims',
+                    'persistentvolumes',
+                    'secrets',
+                    'serviceaccounts',
+                    'daemonsets',
+                    'replicasets',
+                    'statefulsets',
+                    'cronjobs',
+                    'jobs'
+                ],
                 'verbs': ['get', 'watch', 'list', 'create', 'update', 'patch'],
             }
         ],
@@ -208,7 +222,7 @@ def create_rolebinding_yml(rolebinding_filename, team_name):
         apiVersion='rbac.authorization.k8s.io/v1',
         kind='RoleBinding',
         metadata=dict(
-            name='read-pods',
+            name='team-service-account-binding',
             namespace=team_name,
         ),
         subjects=[

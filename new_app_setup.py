@@ -11,6 +11,7 @@ import smtplib
 from google.cloud import storage
 from google.oauth2 import service_account
 import googleapiclient.discovery
+import requests
 
 
 def main():
@@ -39,6 +40,11 @@ def main():
         os.makedirs(working_dir)
 
     team_name = args.team_name.replace(" ", "-").replace("_", "-").lower()
+
+    docker_username = os.environ[str('DOCKER_USERNAME')]
+    docker_password = os.environ[str('DOCKER_PASSWORD')]
+
+    create_docker_repo(team_name, docker_username, docker_password)
 
     namespace_filename = os.path.join(
         working_dir, team_name + "-namespace.yml")
@@ -245,6 +251,23 @@ def create_rolebinding_yml(rolebinding_filename, team_name):
 
     subprocess.check_call(['kubectl', 'apply', '-f',
                            rolebinding_filename, '--namespace='+team_name])
+
+def create_docker_repo(team_name, docker_username, docker_password):
+    URL = "https://hub.docker.com/repositories/"
+
+    auth = (docker_username, docker_password)
+    data = { 
+        "namepsace":"mvpstudio",
+        "name":team_name,
+        "description":"Hack for a Cause 2019",
+        "full_description": "Hack for a Cause 2019 repository for "+team_name,
+        "is_private":"false"
+    }
+
+    r = requests.post(url = URL, data = data, auth = auth)
+
+    repo_info = r.text
+    print(repo_info)
 
 
 if __name__ == '__main__':

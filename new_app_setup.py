@@ -23,6 +23,12 @@ def main():
     parser.add_argument('--team_name', type=str, required=True,
                         help='Team name')
 
+    parser.add_argument('--docker_U', type=str, required=True,
+                        help='Docker Username')
+
+    parser.add_argument('--docker_P', type=str, required=True,
+                        help='Docker Password')
+
     parser.add_argument('-r', '--RAM', type=int, required=False,
                         default=2, help="How many gigabytes of RAM your "
                         "team is requesting, the deault is 2G.")
@@ -41,8 +47,8 @@ def main():
 
     team_name = args.team_name.replace(" ", "-").replace("_", "-").lower()
 
-    docker_username = os.environ[str('DOCKER_USERNAME')]
-    docker_password = os.environ[str('DOCKER_PASSWORD')]
+    docker_username = args.docker_U
+    docker_password = args.docker_P
 
     create_docker_repo(team_name, docker_username, docker_password)
 
@@ -154,21 +160,22 @@ def create_gcloud_service_account(team_name, working_dir):
     key_filename = os.path.join(
         working_dir, team_name+"_gcloud_serviceaccount_key.json")
 
-    # TODO: check if account already exists, and if so, skip
     subprocess.check_call(['gcloud', 'iam', 'service-accounts',
                            'create', team_name])
 
     print("Created the service account: ", team_name)
 
-    service_account_email = team_name + '@'+project_id + '.iam.gserviceaccount.com'
+    service_account_email = (team_name + '@'+project_id +
+                             '.iam.gserviceaccount.com')
 
     subprocess.check_call(['gcloud', 'iam', 'service-accounts',
                            'keys', 'create', key_filename, '--iam-account',
                            service_account_email])
 
-    subprocess.check_call(['gcloud', 'projects', 'add-iam-policy-binding', 'mvpstudio',
-                           '--member', 'serviceAccount:'+service_account_email,
-                           '--role', 'projects/mvpstudio/roles/AppTeamServiceAccount'])
+    subprocess.check_call(['gcloud', 'projects', 'add-iam-policy-binding',
+                           'mvpstudio', '--member', 'serviceAccount:' +
+                           service_account_email, '--role',
+                           'projects/mvpstudio/roles/AppTeamServiceAccount'])
 
     os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = key_filename
 
@@ -193,6 +200,7 @@ def create_role_yml(role_filename, team_name):
                 'apiGroups': ['*'],
                 'resources': [
                     'pods',
+                    'pods/*',
                     'deployments',
                     'services',
                     'configmaps',
@@ -200,7 +208,6 @@ def create_role_yml(role_filename, team_name):
                     'persistentvolumes',
                     'secrets',
                     'serviceaccounts',
-                    'daemonsets',
                     'replicasets',
                     'statefulsets',
                     'cronjobs',
@@ -252,21 +259,46 @@ def create_rolebinding_yml(rolebinding_filename, team_name):
     subprocess.check_call(['kubectl', 'apply', '-f',
                            rolebinding_filename, '--namespace='+team_name])
 
+
 def create_docker_repo(team_name, docker_username, docker_password):
-    URL = "https://hub.docker.com/repositories/"
+    """
+    This function logs into DockerHub and keeps track of that token
+    to pass in when creating the DockerHub repository for each
+    team under the MVPStudio organziation.
+    """
+    login_URL = "https://hub.docker.com/v2/users/login/"
 
-    auth = (docker_username, docker_password)
-    data = { 
-        "namepsace":"mvpstudio",
-        "name":team_name,
-        "description":"Hack for a Cause 2019",
-        "full_description": "Hack for a Cause 2019 repository for "+team_name,
-        "is_private":"false"
-    }
+    login_response = requests.post(url=login_URL, data={"username":
+                                   docker_username,
+                                   "password": docker_password})
 
-    r = requests.post(url = URL, data = data, auth = auth)
+    token = login_response.json()['token']
 
-    repo_info = r.text
+    data = {"namespace": "mvpstudio",
+            "registry": "registry-1.docker.io",
+            "image": "mvpstudio/"+team_name,
+            "build_in_farm": "true",
+            "name": team_name,
+            "description": team_name+" Hack for a Cause 2019",
+            "privacy": "public",
+            "build_settings": [{"nocache": "false",
+                                "build_context": "/",
+                                "source_type": "Branch",
+                                "tag": "latest",
+                                "dockerfile": "Dockerfile",
+                                "source_name": "master",
+                                "autobuild": "true"}],
+            "is_private": "false"
+            }
+
+    repo_URL = "https://cloud.docker.com/v2/repositories/"
+
+    headers_dict = {"Authorization": "JWT "+token}
+
+    repo_response = requests.post(url=repo_URL,
+                                  data=data, headers=headers_dict)
+
+    repo_info = repo_response.text
     print(repo_info)
 
 

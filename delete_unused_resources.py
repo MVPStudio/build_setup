@@ -23,16 +23,16 @@ def main():
     parser = argparse.ArgumentParser(description='Usage: python3 '
                                      'delete_unused_resoures.py '
                                      '--team_name <Team> '
-                                     '--docker_U <Username> '
-                                     '--docker_P <Password>')
+                                     '--docker_u <Username> '
+                                     '--docker_p <Password>')
 
     parser.add_argument('--team_name', type=str, required=True,
                         help='Team name')
 
-    parser.add_argument('--docker_U', type=str, required=True,
+    parser.add_argument('--docker_u', type=str, required=True,
                         help='Docker Username')
 
-    parser.add_argument('--docker_P', type=str, required=True,
+    parser.add_argument('--docker_p', type=str, required=True,
                         help='Docker Password')
 
     args = parser.parse_args()
@@ -56,7 +56,7 @@ def main():
                       role_path, rolebinding_path)
     delete_kubernetes_namespace(team_name)
     delete_gcloud_serviceaccount(team_name, json_path)
-    delete_dockerhub_repo(team_name, args.docker_U, args.docker_P)
+    delete_dockerhub_repo(team_name, args.docker_u, args.docker_p)
 
 
 def delete_team_files(team_name, namespace_path,
@@ -64,42 +64,29 @@ def delete_team_files(team_name, namespace_path,
     """
     Goes into the .working_tmp directory and deletes the files for the
     team that were used to configure their gcloud and kubernetes
-    environments. The files that are being deleted in this funcition
+    environments. The files that are being deleted in this function
     are each team's namespace, quota, rile, and rolebinding yml files.
+    The helper function delete_file_check confirms the file
+    exists in order to delete it, and provides print statements
+    of the deletion status.
     """
-    if os.path.isfile(namespace_path):
-        os.remove(namespace_path)
-        print("The namespace file for {} has been deleted from the"
-              " .workingtmp directory.".format(team_name))
-    else:
-        print("There is no namespace file for {} in this"
-              "directory.".format(team_name))
-
-    if os.path.isfile(quota_path):
-        os.remove(quota_path)
-        print("The quota file for {} has been deleted from the "
-              ".workingtmp directory.".format(team_name))
-    else:
-        print("There is no quota file for {} in this "
-              "directory.".format(team_name))
-
-    if os.path.isfile(role_path):
-        os.remove(role_path)
-        print("The role file for {} has been deleted from the "
-              ".workingtmp directory.".format(team_name))
-    else:
-        print("There is no role file for {} in this "
-              "directory.".format(team_name))
-
-    if os.path.isfile(rolebinding_path):
-        os.remove(rolebinding_path)
-        print("The rolebinding file for {} has been deleted from the "
-              ".workingtmp directory.".format(team_name))
-    else:
-        print("There is no rolebinding file for {} in this "
-              "directory.".format(team_name))
+    delete_file_check(namespace_path)
+    delete_file_check(quota_path)
+    delete_file_check(role_path)
+    delete_file_check(rolebinding_path)
 
     print("Done deleting files for {}.".format(team_name))
+
+
+def delete_file_check(file_path):
+    """
+    Helper function for delete_team_files to check the file exists.
+    """
+    if os.path.isfile(file_path):
+        os.remove(file_path)
+        print("{} has been deleted from this directory.".format(file_path))
+    else:
+        print("Could not find {}.".format(file_path))
 
 
 def delete_kubernetes_namespace(team_name):

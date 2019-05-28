@@ -12,69 +12,53 @@ from google.cloud import storage
 from google.oauth2 import service_account
 import googleapiclient.discovery
 import requests
+import tempfile
 
 
 def main():
-    list_of_unactive = []
-    find_all_unactive_namespaces(list_of_unactive)
+    list_of_unactive = find_all_unactive_namespaces()
     if len(list_of_unactive) > 0:
         print(list_of_unactive)
-        write_unactive_list_to_file(list_of_unactive)
 
     else:
         print("There are no unactive namespaces found.")
 
 
-def find_all_unactive_namespaces(list_of_unactive):
+def find_all_unactive_namespaces():
     """
     This function uses the kubectl commands to get all of the
-    namespaces, and then saves this output to a temp file
-    called namespaces.txt which is manually deleted at the
-    end of this function. This namespaces.txt file is
-    looped through line by line and checks to see if each
+    namespaces, and then saves this output to a tempfile.
+    This file is looped through line by line and checks to see if each
     namespace has any pods running, and if it does, then
     this namespace is not added to our list, but if no
     resources are being used, then the namespace is added
-    to the unactive list.
+    to the unactive list, which is returned.
     """
-    namespaces_file = "namespaces.txt"
+    all_namespaces = subprocess.check_output(['kubectl', 'get', 'namespaces'],
+                                             stderr=subprocess.STDOUT)
 
-    os.system("kubectl get namespace > "+namespaces_file)
+    list_of_unactive = []
 
-    with open(namespaces_file, 'r') as file:
-        header = file.readline()
-        for line in file:
-            l = line.strip().split()
+    tmp = tempfile.TemporaryFile()
+    tmp.write(all_namespaces)
+    tmp.seek(0)
 
-            os.system("kubectl get pods --namespace=" + l[0] +
-                      " > temp_output.txt")
+    header = tmp.readline()
+    for line in tmp:
+        l = line.decode().strip().split()
+        response = subprocess.check_output(['kubectl', 'get', 'pods',
+                                            '--namespace=' + l[0]],
+                                           encoding="UTF-8",
+                                           stderr=subprocess.STDOUT)
+        unactive_response = 'No resources found.'
 
-            with open("temp_output.txt", 'r') as temp:
-                if os.stat("temp_output.txt").st_size == 0:
-                    list_of_unactive.append(l[0])
-                else:
-                    print("Active namespace for {}.".format(l[0]))
-                    temp.close()
-                    os.remove("temp_output.txt")
+        if response.strip() == unactive_response:
+            list_of_unactive.append(l[0])
+            print("{} is an unactive namespace.".format(l[0]))
+        else:
+            print("Active namespace for {}.".format(l[0]))
 
-    file.close()
-    os.remove(namespaces_file)
-
-
-def write_unactive_list_to_file(list_of_unactive):
-    """
-    The unactive list is looped through and the namespace names
-    are written to a file to later be accessed, specifically
-    with the delete_all_unused_resources.py script.
-    """
-    filename = "unactive_namespaces.txt"
-
-    with open(filename, "w+") as file:
-        for team_name in list_of_unactive:
-            file.write(team_name+"\n")
-
-    file.close()
-    print("The unactive namespaces were saved in the file named "+filename)
+    return list_of_unactive
 
 
 if __name__ == '__main__':

@@ -26,7 +26,7 @@ def main():
                                      '--docker_u <Username> '
                                      '--docker_p <Password>')
 
-    parser.add_argument('--team_name', type=str, required=True,
+    parser.add_argument('--team_name', type=str, required=False,
                         help='Team name')
 
     parser.add_argument('--docker_u', type=str, required=True,
@@ -36,8 +36,11 @@ def main():
                         help='Docker Password')
 
     args = parser.parse_args()
-
     team_name = args.team_name.replace(" ", "-").replace("_", "-").lower()
+    delete_all(team_name, args.docker_u, args.docker_p, working_dir_path)
+
+
+def delete_all(team_name, docker_user, docker_pass, working_dir_path):
 
     namespace_filename = team_name + "-namespace.yml"
     quota_filename = team_name + "-quota.yml"
@@ -56,7 +59,7 @@ def main():
                       role_path, rolebinding_path)
     delete_kubernetes_namespace(team_name)
     delete_gcloud_serviceaccount(team_name, json_path)
-    delete_dockerhub_repo(team_name, args.docker_u, args.docker_p)
+    delete_dockerhub_repo(team_name, docker_user, docker_pass)
 
 
 def delete_team_files(team_name, namespace_path,

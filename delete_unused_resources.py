@@ -26,7 +26,7 @@ def main():
                                      '--docker_u <Username> '
                                      '--docker_p <Password>')
 
-    parser.add_argument('--team_name', type=str, required=False,
+    parser.add_argument('--team_name', type=str, required=True,
                         help='Team name')
 
     parser.add_argument('--docker_u', type=str, required=True,
